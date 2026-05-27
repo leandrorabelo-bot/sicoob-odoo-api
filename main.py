@@ -30,7 +30,7 @@ def get_token():
         data={
             "grant_type": "client_credentials",
             "client_id": os.getenv("SICOOB_CLIENT_ID"),
-            "scope": "openid cco_extrato cco_saldo"
+            "scope": "cco_consulta"
         },
         headers={
             "Content-Type": "application/x-www-form-urlencoded"
