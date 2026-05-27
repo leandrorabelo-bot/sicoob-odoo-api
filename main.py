@@ -74,14 +74,10 @@ def sicoob_extrato(dataInicio: str, dataFim: str):
 
     cert_path = get_cert_path()
 
-    url = f"{CONTA_URL}/contas/{conta}/saldo"
+    url = f"{CONTA_URL}/extrato/5/2026"
 
     response = get(
         url,
-        params={
-            "dataInicio": dataInicio,
-            "dataFim": dataFim
-        },
         headers={
             "Authorization": f"Bearer {token}",
             "client_id": os.getenv("SICOOB_CLIENT_ID"),
