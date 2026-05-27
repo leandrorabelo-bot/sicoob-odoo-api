@@ -66,7 +66,7 @@ def sicoob_token():
 
 
 @app.get("/sicoob/extrato")
-def sicoob_extrato(dataInicio: str, dataFim: str):
+def sicoob_extrato():
 
     token = get_token()
 
