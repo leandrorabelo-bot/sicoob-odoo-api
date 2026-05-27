@@ -1,12 +1,37 @@
-import os
-import base64
-import tempfile
+import os, base64, tempfile
+import requests
 from requests_pkcs12 import post
 from fastapi import FastAPI
 
 app = FastAPI()
 
-SICOOB_TOKEN_URL = "https://auth.sicoob.com.br/auth/realms/cooperado/protocol/openid-connect/token"
+TOKEN_URL = "https://auth.sicoob.com.br/auth/realms/cooperado/protocol/openid-connect/token"
+CONTA_URL = "https://api.sicoob.com.br/conta-corrente/v4"
+
+def get_cert_path():
+    with open("/etc/secrets/certificado.pfx", "r") as f:
+        cert_bytes = base64.b64decode(f.read().strip())
+    temp = tempfile.NamedTemporaryFile(delete=False, suffix=".pfx")
+    temp.write(cert_bytes)
+    temp.close()
+    return temp.name
+
+def get_token():
+    cert_path = get_cert_path()
+    r = post(
+        TOKEN_URL,
+        data={
+            "grant_type": "client_credentials",
+            "client_id": os.getenv("SICOOB_CLIENT_ID"),
+            "scope": "cco_consulta"
+        },
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        pkcs12_filename=cert_path,
+        pkcs12_password=os.getenv("SICOOB_CERT_PASSWORD"),
+        timeout=30,
+    )
+    r.raise_for_status()
+    return r.json()["access_token"]
 
 @app.get("/")
 def home():
@@ -18,34 +43,36 @@ def health():
 
 @app.get("/sicoob/token")
 def sicoob_token():
-    client_id = os.getenv("SICOOB_CLIENT_ID")
-    cert_password = os.getenv("SICOOB_CERT_PASSWORD")
-    cert_b64_path = "/etc/secrets/certificado.pfx"
+    return {"access_token": get_token()[:80] + "...", "ok": True}
 
-    with open(cert_b64_path, "r") as f:
-        cert_b64 = f.read().strip()
+@app.get("/sicoob/extrato")
+def sicoob_extrato(dataInicio: str, dataFim: str):
+    token = get_token()
+    conta = os.getenv("SICOOB_CONTA")
 
-    cert_bytes = base64.b64decode(cert_b64)
+    url = f"{CONTA_URL}/contas/{conta}/extrato"
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pfx") as temp_cert:
-        temp_cert.write(cert_bytes)
-        temp_cert_path = temp_cert.name
-
-    response = post(
-        SICOOB_TOKEN_URL,
-        data={
-            "grant_type": "client_credentials",
-            "client_id": client_id,
+    r = requests.get(
+        url,
+        params={
+            "dataInicio": dataInicio,
+            "dataFim": dataFim
         },
         headers={
-            "Content-Type": "application/x-www-form-urlencoded"
+            "Authorization": f"Bearer {token}",
+            "client_id": os.getenv("SICOOB_CLIENT_ID"),
+            "Accept": "application/json"
         },
-        pkcs12_filename=temp_cert_path,
-        pkcs12_password=cert_password,
         timeout=30,
     )
 
+    try:
+        body = r.json()
+    except Exception:
+        body = r.text
+
     return {
-        "status_code": response.status_code,
-        "response": response.json() if response.text else None
+        "status_code": r.status_code,
+        "url_testada": url,
+        "resposta": body
     }
