@@ -1,7 +1,7 @@
 import os
 import base64
 import tempfile
-import requests
+from requests_pkcs12 import post
 from fastapi import FastAPI
 
 app = FastAPI()
@@ -31,7 +31,7 @@ def sicoob_token():
         temp_cert.write(cert_bytes)
         temp_cert_path = temp_cert.name
 
-    response = requests.post(
+    response = post(
         SICOOB_TOKEN_URL,
         data={
             "grant_type": "client_credentials",
