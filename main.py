@@ -66,7 +66,12 @@ def sicoob_token():
 
 
 @app.get("/sicoob/extrato")
-def sicoob_extrato():
+def sicoob_extrato(
+    mes: int,
+    ano: int,
+    diaInicial: int,
+    diaFinal: int
+):
 
     token = get_token()
 
@@ -74,19 +79,24 @@ def sicoob_extrato():
 
     cert_path = get_cert_path()
 
-    url = f"{CONTA_URL}/extrato/5/2026"
+ url = f"{CONTA_URL}/extrato/{mes}/{ano}"
 
-    response = get(
-        url,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "client_id": os.getenv("SICOOB_CLIENT_ID"),
-            "Accept": "application/json"
-        },
-        pkcs12_filename=cert_path,
-        pkcs12_password=os.getenv("SICOOB_CERT_PASSWORD"),
-        timeout=30,
-    )
+response = get(
+    url,
+    headers={
+        "Authorization": f"Bearer {token}",
+        "client_id": os.getenv("SICOOB_CLIENT_ID"),
+        "Accept": "application/json"
+    },
+    params={
+        "diaInicial": diaInicial,
+        "diaFinal": diaFinal,
+        "numeroContaCorrente": conta
+    },
+    pkcs12_filename=cert_path,
+    pkcs12_password=os.getenv("SICOOB_CERT_PASSWORD"),
+    timeout=30,
+)
 
     try:
         body = response.json()
