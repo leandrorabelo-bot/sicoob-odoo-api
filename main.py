@@ -1,3 +1,6 @@
+from fastapi.responses import Response
+import csv
+import io
 import os
 import base64
 import tempfile
@@ -204,3 +207,40 @@ def sicoob_extrato_odoo(
         "quantidade": len(linhas_odoo),
         "linhas": linhas_odoo
     }
+    @app.get("/sicoob/extrato-csv")
+def sicoob_extrato_csv(
+    mes: int,
+    ano: int,
+    diaInicial: int,
+    diaFinal: int
+):
+    dados = sicoob_extrato_odoo(mes, ano, diaInicial, diaFinal)
+
+    linhas = dados["linhas"]
+
+    output = io.StringIO()
+
+    writer = csv.writer(output)
+
+    writer.writerow([
+        "Date",
+        "Label",
+        "Amount"
+    ])
+
+    for l in linhas:
+        writer.writerow([
+            l["date"],
+            l["payment_ref"],
+            l["amount"]
+        ])
+
+    csv_content = output.getvalue()
+
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=extrato.csv"
+        }
+    )
