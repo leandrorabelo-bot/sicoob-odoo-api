@@ -79,7 +79,7 @@ def sicoob_extrato(
 
     cert_path = get_cert_path()
 
- url = f"{CONTA_URL}/extrato/{mes}/{ano}"
+url = f"{CONTA_URL}/extrato/{mes}/{ano}"
 
 response = get(
     url,
