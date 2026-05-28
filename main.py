@@ -172,3 +172,35 @@ def sicoob_extrato_limpo(
             "transacoes": limpo
         }
     )
+@app.get("/sicoob/extrato-odoo")
+def sicoob_extrato_odoo(
+    mes: int,
+    ano: int,
+    diaInicial: int,
+    diaFinal: int
+):
+    bruto = sicoob_extrato(mes, ano, diaInicial, diaFinal)
+
+    transacoes = bruto.get("resposta", {}).get("resultado", {}).get("transacoes", [])
+
+    linhas_odoo = []
+
+    for t in transacoes:
+        tipo = t.get("tipo")
+        valor = float(t.get("valor", 0))
+
+        amount = valor if tipo == "CREDITO" else -valor
+
+        linhas_odoo.append({
+            "date": t.get("data", "")[:10],
+            "payment_ref": f"{t.get('descricao', '')} - {t.get('descInfComplementar', '')}",
+            "amount": amount,
+            "unique_import_id": t.get("transactionId"),
+            "document": t.get("numeroDocumento"),
+            "raw_type": tipo
+        })
+
+    return {
+        "quantidade": len(linhas_odoo),
+        "linhas": linhas_odoo
+    }
