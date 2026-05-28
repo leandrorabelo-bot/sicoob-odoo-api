@@ -2,6 +2,7 @@ import os
 import base64
 import tempfile
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from requests_pkcs12 import post, get
 
 app = FastAPI()
@@ -165,7 +166,9 @@ def sicoob_extrato_limpo(
             "complemento": t.get("descInfComplementar")
         })
 
-    return {
-        "quantidade": len(limpo),
-        "transacoes": limpo
-    }
+    return JSONResponse(
+        content={
+            "quantidade": len(limpo),
+            "transacoes": limpo
+        }
+    )
