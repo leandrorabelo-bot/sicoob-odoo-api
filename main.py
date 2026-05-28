@@ -1,7 +1,8 @@
-from fastapi import FastAPI
-from requests_pkcs12 import get
-import requests
 import os
+import base64
+import tempfile
+from fastapi import FastAPI
+from requests_pkcs12 import post, get
 
 app = FastAPI()
 
@@ -20,38 +21,47 @@ def health():
 
 
 def get_cert_path():
-    return "/etc/secrets/certificado.pfx"
+    with open("/etc/secrets/certificado.pfx", "r") as f:
+        cert_base64 = f.read().strip()
+
+    cert_bytes = base64.b64decode(cert_base64)
+
+    temp = tempfile.NamedTemporaryFile(delete=False, suffix=".pfx")
+    temp.write(cert_bytes)
+    temp.close()
+
+    return temp.name
 
 
 def get_token():
-
     cert_path = get_cert_path()
 
-    response = get(
+    response = post(
         TOKEN_URL,
-        headers={
-            "Content-Type": "application/x-www-form-urlencoded"
-        },
         data={
             "grant_type": "client_credentials",
-            "client_id": os.getenv("SICOOB_CLIENT_ID")
+            "client_id": os.getenv("SICOOB_CLIENT_ID"),
+            "scope": "cco_consulta"
+        },
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded"
         },
         pkcs12_filename=cert_path,
         pkcs12_password=os.getenv("SICOOB_CERT_PASSWORD"),
         timeout=30
     )
 
+    response.raise_for_status()
     return response.json()["access_token"]
 
 
 @app.get("/sicoob/token")
 def sicoob_token():
-
     token = get_token()
 
     return {
         "ok": True,
-        "token_inicio": token[:40] + "..."
+        "token_inicio": token[:80] + "..."
     }
 
 
@@ -62,11 +72,8 @@ def sicoob_extrato(
     diaInicial: int,
     diaFinal: int
 ):
-
     token = get_token()
-
     conta = os.getenv("SICOOB_CONTA")
-
     cert_path = get_cert_path()
 
     url = f"{CONTA_URL}/extrato/{mes}/{ano}"
@@ -89,24 +96,21 @@ def sicoob_extrato(
     )
 
     try:
-        resposta_json = response.json()
-    except:
-        resposta_json = response.text
+        body = response.json()
+    except Exception:
+        body = response.text
 
     return {
         "status_code": response.status_code,
         "url_testada": url,
-        "resposta": resposta_json
+        "resposta": body
     }
 
 
 @app.get("/sicoob/saldo")
 def sicoob_saldo():
-
     token = get_token()
-
     conta = os.getenv("SICOOB_CONTA")
-
     cert_path = get_cert_path()
 
     url = f"{CONTA_URL}/saldo"
@@ -127,12 +131,12 @@ def sicoob_saldo():
     )
 
     try:
-        resposta_json = response.json()
-    except:
-        resposta_json = response.text
+        body = response.json()
+    except Exception:
+        body = response.text
 
     return {
         "status_code": response.status_code,
         "url_testada": url,
-        "resposta": resposta_json
+        "resposta": body
     }
