@@ -1,11 +1,11 @@
-from fastapi.responses import Response
-import csv
-import io
 import os
 import base64
 import tempfile
+import csv
+import io
+
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi.responses import Response
 from requests_pkcs12 import post, get
 
 app = FastAPI()
@@ -30,7 +30,11 @@ def get_cert_path():
 
     cert_bytes = base64.b64decode(cert_base64)
 
-    temp = tempfile.NamedTemporaryFile(delete=False, suffix=".pfx")
+    temp = tempfile.NamedTemporaryFile(
+        delete=False,
+        suffix=".pfx"
+    )
+
     temp.write(cert_bytes)
     temp.close()
 
@@ -56,6 +60,7 @@ def get_token():
     )
 
     response.raise_for_status()
+
     return response.json()["access_token"]
 
 
@@ -77,7 +82,9 @@ def sicoob_extrato(
     diaFinal: int
 ):
     token = get_token()
+
     conta = os.getenv("SICOOB_CONTA")
+
     cert_path = get_cert_path()
 
     url = f"{CONTA_URL}/extrato/{mes}/{ano}"
@@ -114,7 +121,9 @@ def sicoob_extrato(
 @app.get("/sicoob/saldo")
 def sicoob_saldo():
     token = get_token()
+
     conta = os.getenv("SICOOB_CONTA")
+
     cert_path = get_cert_path()
 
     url = f"{CONTA_URL}/saldo"
@@ -144,6 +153,8 @@ def sicoob_saldo():
         "url_testada": url,
         "resposta": body
     }
+
+
 @app.get("/sicoob/extrato-limpo")
 def sicoob_extrato_limpo(
     mes: int,
@@ -151,9 +162,19 @@ def sicoob_extrato_limpo(
     diaInicial: int,
     diaFinal: int
 ):
-    bruto = sicoob_extrato(mes, ano, diaInicial, diaFinal)
+    bruto = sicoob_extrato(
+        mes,
+        ano,
+        diaInicial,
+        diaFinal
+    )
 
-    transacoes = bruto.get("resposta", {}).get("resultado", {}).get("transacoes", [])
+    transacoes = (
+        bruto
+        .get("resposta", {})
+        .get("resultado", {})
+        .get("transacoes", [])
+    )
 
     limpo = []
 
@@ -169,12 +190,12 @@ def sicoob_extrato_limpo(
             "complemento": t.get("descInfComplementar")
         })
 
-    return JSONResponse(
-        content={
-            "quantidade": len(limpo),
-            "transacoes": limpo
-        }
-    )
+    return {
+        "quantidade": len(limpo),
+        "transacoes": limpo
+    }
+
+
 @app.get("/sicoob/extrato-odoo")
 def sicoob_extrato_odoo(
     mes: int,
@@ -182,39 +203,50 @@ def sicoob_extrato_odoo(
     diaInicial: int,
     diaFinal: int
 ):
-    bruto = sicoob_extrato(mes, ano, diaInicial, diaFinal)
+    bruto = sicoob_extrato_limpo(
+        mes,
+        ano,
+        diaInicial,
+        diaFinal
+    )
 
-    transacoes = bruto.get("resposta", {}).get("resultado", {}).get("transacoes", [])
+    linhas = []
 
-    linhas_odoo = []
+    for t in bruto["transacoes"]:
 
-    for t in transacoes:
-        tipo = t.get("tipo")
-        valor = float(t.get("valor", 0))
+        valor = float(t["valor"])
 
-        amount = valor if tipo == "CREDITO" else -valor
+        if t["tipo"] == "DEBITO":
+            valor = valor * -1
 
-        linhas_odoo.append({
-            "date": t.get("data", "")[:10],
-            "payment_ref": f"{t.get('descricao', '')} - {t.get('descInfComplementar', '')}",
-            "amount": amount,
-            "unique_import_id": t.get("transactionId"),
-            "document": t.get("numeroDocumento"),
-            "raw_type": tipo
+        linhas.append({
+            "date": t["data_lote"],
+            "payment_ref": f"{t['descricao']} - {t['complemento']}",
+            "amount": valor,
+            "unique_import_id": t["id"],
+            "document": t["documento"],
+            "raw_type": t["tipo"]
         })
 
     return {
-        "quantidade": len(linhas_odoo),
-        "linhas": linhas_odoo
+        "quantidade": len(linhas),
+        "linhas": linhas
     }
-    @app.get("/sicoob/extrato-csv")
+
+
+@app.get("/sicoob/extrato-csv")
 def sicoob_extrato_csv(
     mes: int,
     ano: int,
     diaInicial: int,
     diaFinal: int
 ):
-    dados = sicoob_extrato_odoo(mes, ano, diaInicial, diaFinal)
+    dados = sicoob_extrato_odoo(
+        mes,
+        ano,
+        diaInicial,
+        diaFinal
+    )
 
     linhas = dados["linhas"]
 
