@@ -140,3 +140,32 @@ def sicoob_saldo():
         "url_testada": url,
         "resposta": body
     }
+@app.get("/sicoob/extrato-limpo")
+def sicoob_extrato_limpo(
+    mes: int,
+    ano: int,
+    diaInicial: int,
+    diaFinal: int
+):
+    bruto = sicoob_extrato(mes, ano, diaInicial, diaFinal)
+
+    transacoes = bruto.get("resposta", {}).get("resultado", {}).get("transacoes", [])
+
+    limpo = []
+
+    for t in transacoes:
+        limpo.append({
+            "id": t.get("transactionId"),
+            "data": t.get("data"),
+            "data_lote": t.get("dataLote"),
+            "tipo": t.get("tipo"),
+            "valor": t.get("valor"),
+            "descricao": t.get("descricao"),
+            "documento": t.get("numeroDocumento"),
+            "complemento": t.get("descInfComplementar")
+        })
+
+    return {
+        "quantidade": len(limpo),
+        "transacoes": limpo
+    }
