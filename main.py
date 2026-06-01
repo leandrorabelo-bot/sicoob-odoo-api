@@ -294,3 +294,50 @@ def testar_odoo():
         "uid": uid,
         "status": "conectado" if uid else "falhou"
     }
+models = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/object")
+
+
+@app.get("/odoo/importar-extrato")
+def importar_extrato(
+    mes: str,
+    ano: str,
+    diaInicial: str,
+    diaFinal: str
+):
+
+    dados = sicoob_extrato_odoo(
+        mes,
+        ano,
+        diaInicial,
+        diaFinal
+    )
+
+    linhas = dados["linhas"]
+
+    importados = []
+
+    for l in linhas:
+
+        statement_line = {
+            "date": l["date"],
+            "payment_ref": l["payment_ref"],
+            "amount": l["amount"],
+            "unique_import_id": l["unique_import_id"],
+            "journal_id": ODOO_JOURNAL_ID
+        }
+
+        result = models.execute_kw(
+            ODOO_DB,
+            uid,
+            ODOO_API_KEY,
+            'account.bank.statement.line',
+            'create',
+            [statement_line]
+        )
+
+        importados.append(result)
+
+    return {
+        "importados": len(importados),
+        "ids": importados
+    }
