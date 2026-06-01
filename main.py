@@ -276,3 +276,21 @@ def sicoob_extrato_csv(
             "Content-Disposition": "attachment; filename=extrato.csv"
         }
     )
+import xmlrpc.client
+
+ODOO_URL = "https://gmmholding.odoo.com"
+ODOO_DB = "gmmholding"
+ODOO_USER = "leandro.rabelo@gmail.com"
+ODOO_API_KEY = "10feaa5dc77bc458303ca70eee7c4ed6096401f4"
+ODOO_JOURNAL_ID = 18
+
+
+@app.get("/odoo/teste")
+def testar_odoo():
+    common = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/common")
+    uid = common.authenticate(ODOO_DB, ODOO_USER, ODOO_API_KEY, {})
+
+    return {
+        "uid": uid,
+        "status": "conectado" if uid else "falhou"
+    }
