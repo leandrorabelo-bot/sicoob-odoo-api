@@ -298,46 +298,47 @@ models = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/object")
 
 
 @app.get("/odoo/importar-extrato")
-def importar_extrato(
-    mes: str,
-    ano: str,
-    diaInicial: str,
-    diaFinal: str
-):
+def importar_extrato(mes: str, ano: str, diaInicial: str, diaFinal: str):
+    common = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/common")
+    uid = common.authenticate(ODOO_DB, ODOO_USER, ODOO_API_KEY, {})
+
+    if not uid:
+        return {"status": "erro", "mensagem": "Falha ao autenticar no Odoo"}
+
+    models = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/object")
 
     dados = sicoob_extrato_odoo(
-        mes,
-        ano,
-        diaInicial,
-        diaFinal
+        mes=mes,
+        ano=ano,
+        diaInicial=diaInicial,
+        diaFinal=diaFinal
     )
 
     linhas = dados["linhas"]
-
     importados = []
 
     for l in linhas:
-
         statement_line = {
             "date": l["date"],
             "payment_ref": l["payment_ref"],
             "amount": l["amount"],
             "unique_import_id": l["unique_import_id"],
-            "journal_id": ODOO_JOURNAL_ID
+            "journal_id": ODOO_JOURNAL_ID,
         }
 
         result = models.execute_kw(
             ODOO_DB,
             uid,
             ODOO_API_KEY,
-            'account.bank.statement.line',
-            'create',
+            "account.bank.statement.line",
+            "create",
             [statement_line]
         )
 
         importados.append(result)
 
     return {
+        "status": "ok",
         "importados": len(importados),
         "ids": importados
     }
