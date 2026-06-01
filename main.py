@@ -342,3 +342,80 @@ def importar_extrato(mes: str, ano: str, diaInicial: str, diaFinal: str):
         "importados": len(importados),
         "ids": importados
     }
+@app.get("/odoo/sincronizar")
+def sincronizar_extrato(
+    mes: str,
+    ano: str,
+    diaInicial: str,
+    diaFinal: str
+):
+
+    common = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/common")
+
+    uid = common.authenticate(
+        ODOO_DB,
+        ODOO_USER,
+        ODOO_API_KEY,
+        {}
+    )
+
+    if not uid:
+        return {
+            "status": "erro",
+            "mensagem": "Falha autenticação Odoo"
+        }
+
+    models = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/object")
+
+    dados = sicoob_extrato_odoo(
+        mes=mes,
+        ano=ano,
+        diaInicial=diaInicial,
+        diaFinal=diaFinal
+    )
+
+    linhas = dados["linhas"]
+
+    importados = 0
+    duplicados = 0
+    erros = []
+
+    for l in linhas:
+
+        try:
+
+            statement_line = {
+                "date": l["date"],
+                "payment_ref": l["payment_ref"],
+                "amount": l["amount"],
+                "unique_import_id": l["unique_import_id"],
+                "journal_id": ODOO_JOURNAL_ID,
+            }
+
+            models.execute_kw(
+                ODOO_DB,
+                uid,
+                ODOO_API_KEY,
+                "account.bank.statement.line",
+                "create",
+                [statement_line]
+            )
+
+            importados += 1
+
+        except Exception as e:
+
+            erro = str(e)
+
+            if "can be imported only once" in erro:
+                duplicados += 1
+            else:
+                erros.append(erro)
+
+    return {
+        "status": "ok",
+        "total_recebido": len(linhas),
+        "importados": importados,
+        "duplicados": duplicados,
+        "erros": erros
+    }
