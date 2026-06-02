@@ -33,7 +33,7 @@ ODOO_JOURNAL_ID = 18
 # STONE
 # =========================
 
-STONE_API_KEY = os.getenv("sk_a262ff8d1efb46aaaef31cd439957a7e")
+STONE_API_KEY = os.getenv("STONE_API_KEY")
 
 
 @app.get("/")
