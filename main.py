@@ -26,7 +26,7 @@ CONTA_URL = "https://api.sicoob.com.br/conta-corrente/v4"
 ODOO_URL = "https://gmmholding.odoo.com"
 ODOO_DB = "gmmholding"
 ODOO_USER = "leandro.rabelo@gmail.com"
-ODOO_API_KEY = os.getenv("ODOO_API_KEY")
+ODOO_API_KEY = os.getenv("10feaa5dc77bc458303ca70eee7c4ed6096401f4")
 ODOO_JOURNAL_ID = 18
 
 # =========================
