@@ -3,6 +3,8 @@ import base64
 import tempfile
 import csv
 import io
+import requests
+import xmlrpc.client
 
 from fastapi import FastAPI
 from fastapi.responses import Response
@@ -10,8 +12,28 @@ from requests_pkcs12 import post, get
 
 app = FastAPI()
 
+# =========================
+# SICOOB
+# =========================
+
 TOKEN_URL = "https://auth.sicoob.com.br/auth/realms/cooperado/protocol/openid-connect/token"
 CONTA_URL = "https://api.sicoob.com.br/conta-corrente/v4"
+
+# =========================
+# ODOO
+# =========================
+
+ODOO_URL = "https://gmmholding.odoo.com"
+ODOO_DB = "gmmholding"
+ODOO_USER = "leandro.rabelo@gmail.com"
+ODOO_API_KEY = os.getenv("ODOO_API_KEY")
+ODOO_JOURNAL_ID = 18
+
+# =========================
+# STONE
+# =========================
+
+STONE_API_KEY = os.getenv("sk_a262ff8d1efb46aaaef31cd439957a7e")
 
 
 @app.get("/")
@@ -30,11 +52,7 @@ def get_cert_path():
 
     cert_bytes = base64.b64decode(cert_base64)
 
-    temp = tempfile.NamedTemporaryFile(
-        delete=False,
-        suffix=".pfx"
-    )
-
+    temp = tempfile.NamedTemporaryFile(delete=False, suffix=".pfx")
     temp.write(cert_bytes)
     temp.close()
 
@@ -49,42 +67,28 @@ def get_token():
         data={
             "grant_type": "client_credentials",
             "client_id": os.getenv("SICOOB_CLIENT_ID"),
-            "scope": "cco_consulta"
+            "scope": "cco_consulta",
         },
-        headers={
-            "Content-Type": "application/x-www-form-urlencoded"
-        },
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
         pkcs12_filename=cert_path,
         pkcs12_password=os.getenv("SICOOB_CERT_PASSWORD"),
-        timeout=30
+        timeout=30,
     )
 
     response.raise_for_status()
-
     return response.json()["access_token"]
 
 
 @app.get("/sicoob/token")
 def sicoob_token():
     token = get_token()
-
-    return {
-        "ok": True,
-        "token_inicio": token[:80] + "..."
-    }
+    return {"ok": True, "token_inicio": token[:80] + "..."}
 
 
 @app.get("/sicoob/extrato")
-def sicoob_extrato(
-    mes: int,
-    ano: int,
-    diaInicial: int,
-    diaFinal: int
-):
+def sicoob_extrato(mes: int, ano: int, diaInicial: int, diaFinal: int):
     token = get_token()
-
     conta = os.getenv("SICOOB_CONTA")
-
     cert_path = get_cert_path()
 
     url = f"{CONTA_URL}/extrato/{mes}/{ano}"
@@ -94,16 +98,16 @@ def sicoob_extrato(
         headers={
             "Authorization": f"Bearer {token}",
             "client_id": os.getenv("SICOOB_CLIENT_ID"),
-            "Accept": "application/json"
+            "Accept": "application/json",
         },
         params={
             "diaInicial": diaInicial,
             "diaFinal": diaFinal,
-            "numeroContaCorrente": conta
+            "numeroContaCorrente": conta,
         },
         pkcs12_filename=cert_path,
         pkcs12_password=os.getenv("SICOOB_CERT_PASSWORD"),
-        timeout=30
+        timeout=30,
     )
 
     try:
@@ -114,16 +118,14 @@ def sicoob_extrato(
     return {
         "status_code": response.status_code,
         "url_testada": url,
-        "resposta": body
+        "resposta": body,
     }
 
 
 @app.get("/sicoob/saldo")
 def sicoob_saldo():
     token = get_token()
-
     conta = os.getenv("SICOOB_CONTA")
-
     cert_path = get_cert_path()
 
     url = f"{CONTA_URL}/saldo"
@@ -133,14 +135,12 @@ def sicoob_saldo():
         headers={
             "Authorization": f"Bearer {token}",
             "client_id": os.getenv("SICOOB_CLIENT_ID"),
-            "Accept": "application/json"
+            "Accept": "application/json",
         },
-        params={
-            "numeroContaCorrente": conta
-        },
+        params={"numeroContaCorrente": conta},
         pkcs12_filename=cert_path,
         pkcs12_password=os.getenv("SICOOB_CERT_PASSWORD"),
-        timeout=30
+        timeout=30,
     )
 
     try:
@@ -151,23 +151,13 @@ def sicoob_saldo():
     return {
         "status_code": response.status_code,
         "url_testada": url,
-        "resposta": body
+        "resposta": body,
     }
 
 
 @app.get("/sicoob/extrato-limpo")
-def sicoob_extrato_limpo(
-    mes: int,
-    ano: int,
-    diaInicial: int,
-    diaFinal: int
-):
-    bruto = sicoob_extrato(
-        mes,
-        ano,
-        diaInicial,
-        diaFinal
-    )
+def sicoob_extrato_limpo(mes: int, ano: int, diaInicial: int, diaFinal: int):
+    bruto = sicoob_extrato(mes, ano, diaInicial, diaFinal)
 
     transacoes = (
         bruto
@@ -187,33 +177,22 @@ def sicoob_extrato_limpo(
             "valor": t.get("valor"),
             "descricao": t.get("descricao"),
             "documento": t.get("numeroDocumento"),
-            "complemento": t.get("descInfComplementar")
+            "complemento": t.get("descInfComplementar"),
         })
 
     return {
         "quantidade": len(limpo),
-        "transacoes": limpo
+        "transacoes": limpo,
     }
 
 
 @app.get("/sicoob/extrato-odoo")
-def sicoob_extrato_odoo(
-    mes: int,
-    ano: int,
-    diaInicial: int,
-    diaFinal: int
-):
-    bruto = sicoob_extrato_limpo(
-        mes,
-        ano,
-        diaInicial,
-        diaFinal
-    )
+def sicoob_extrato_odoo(mes: int, ano: int, diaInicial: int, diaFinal: int):
+    bruto = sicoob_extrato_limpo(mes, ano, diaInicial, diaFinal)
 
     linhas = []
 
     for t in bruto["transacoes"]:
-
         valor = float(t["valor"])
 
         if t["tipo"] == "DEBITO":
@@ -225,46 +204,30 @@ def sicoob_extrato_odoo(
             "amount": valor,
             "unique_import_id": t["id"],
             "document": t["documento"],
-            "raw_type": t["tipo"]
+            "raw_type": t["tipo"],
         })
 
     return {
         "quantidade": len(linhas),
-        "linhas": linhas
+        "linhas": linhas,
     }
 
 
 @app.get("/sicoob/extrato-csv")
-def sicoob_extrato_csv(
-    mes: int,
-    ano: int,
-    diaInicial: int,
-    diaFinal: int
-):
-    dados = sicoob_extrato_odoo(
-        mes,
-        ano,
-        diaInicial,
-        diaFinal
-    )
-
+def sicoob_extrato_csv(mes: int, ano: int, diaInicial: int, diaFinal: int):
+    dados = sicoob_extrato_odoo(mes, ano, diaInicial, diaFinal)
     linhas = dados["linhas"]
 
     output = io.StringIO()
-
     writer = csv.writer(output)
 
-    writer.writerow([
-        "Date",
-        "Label",
-        "Amount"
-    ])
+    writer.writerow(["Date", "Label", "Amount"])
 
     for l in linhas:
         writer.writerow([
             l["date"],
             l["payment_ref"],
-            l["amount"]
+            l["amount"],
         ])
 
     csv_content = output.getvalue()
@@ -272,35 +235,32 @@ def sicoob_extrato_csv(
     return Response(
         content=csv_content,
         media_type="text/csv",
-        headers={
-            "Content-Disposition": "attachment; filename=extrato.csv"
-        }
+        headers={"Content-Disposition": "attachment; filename=extrato.csv"},
     )
-import xmlrpc.client
 
-ODOO_URL = "https://gmmholding.odoo.com"
-ODOO_DB = "gmmholding"
-ODOO_USER = "leandro.rabelo@gmail.com"
-ODOO_API_KEY = "10feaa5dc77bc458303ca70eee7c4ed6096401f4"
-ODOO_JOURNAL_ID = 18
+
+# =========================
+# ODOO
+# =========================
+
+def get_odoo_uid():
+    common = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/common")
+    return common.authenticate(ODOO_DB, ODOO_USER, ODOO_API_KEY, {})
 
 
 @app.get("/odoo/teste")
 def testar_odoo():
-    common = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/common")
-    uid = common.authenticate(ODOO_DB, ODOO_USER, ODOO_API_KEY, {})
+    uid = get_odoo_uid()
 
     return {
         "uid": uid,
-        "status": "conectado" if uid else "falhou"
+        "status": "conectado" if uid else "falhou",
     }
-models = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/object")
 
 
 @app.get("/odoo/importar-extrato")
 def importar_extrato(mes: str, ano: str, diaInicial: str, diaFinal: str):
-    common = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/common")
-    uid = common.authenticate(ODOO_DB, ODOO_USER, ODOO_API_KEY, {})
+    uid = get_odoo_uid()
 
     if not uid:
         return {"status": "erro", "mensagem": "Falha ao autenticar no Odoo"}
@@ -311,7 +271,7 @@ def importar_extrato(mes: str, ano: str, diaInicial: str, diaFinal: str):
         mes=mes,
         ano=ano,
         diaInicial=diaInicial,
-        diaFinal=diaFinal
+        diaFinal=diaFinal,
     )
 
     linhas = dados["linhas"]
@@ -332,7 +292,7 @@ def importar_extrato(mes: str, ano: str, diaInicial: str, diaFinal: str):
             ODOO_API_KEY,
             "account.bank.statement.line",
             "create",
-            [statement_line]
+            [statement_line],
         )
 
         importados.append(result)
@@ -340,29 +300,18 @@ def importar_extrato(mes: str, ano: str, diaInicial: str, diaFinal: str):
     return {
         "status": "ok",
         "importados": len(importados),
-        "ids": importados
+        "ids": importados,
     }
+
+
 @app.get("/odoo/sincronizar")
-def sincronizar_extrato(
-    mes: str,
-    ano: str,
-    diaInicial: str,
-    diaFinal: str
-):
-
-    common = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/common")
-
-    uid = common.authenticate(
-        ODOO_DB,
-        ODOO_USER,
-        ODOO_API_KEY,
-        {}
-    )
+def sincronizar_extrato(mes: str, ano: str, diaInicial: str, diaFinal: str):
+    uid = get_odoo_uid()
 
     if not uid:
         return {
             "status": "erro",
-            "mensagem": "Falha autenticação Odoo"
+            "mensagem": "Falha autenticação Odoo",
         }
 
     models = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/object")
@@ -371,7 +320,7 @@ def sincronizar_extrato(
         mes=mes,
         ano=ano,
         diaInicial=diaInicial,
-        diaFinal=diaFinal
+        diaFinal=diaFinal,
     )
 
     linhas = dados["linhas"]
@@ -381,9 +330,7 @@ def sincronizar_extrato(
     erros = []
 
     for l in linhas:
-
         try:
-
             statement_line = {
                 "date": l["date"],
                 "payment_ref": l["payment_ref"],
@@ -398,13 +345,12 @@ def sincronizar_extrato(
                 ODOO_API_KEY,
                 "account.bank.statement.line",
                 "create",
-                [statement_line]
+                [statement_line],
             )
 
             importados += 1
 
         except Exception as e:
-
             erro = str(e)
 
             if "can be imported only once" in erro:
@@ -417,5 +363,42 @@ def sincronizar_extrato(
         "total_recebido": len(linhas),
         "importados": importados,
         "duplicados": duplicados,
-        "erros": erros
+        "erros": erros,
+    }
+
+
+# =========================
+# STONE
+# =========================
+
+@app.get("/stone/test")
+def stone_test():
+    if not STONE_API_KEY:
+        return {
+            "status": "erro",
+            "mensagem": "STONE_API_KEY não configurada no Render",
+        }
+
+    headers = {
+        "Authorization": STONE_API_KEY,
+        "Content-Type": "application/json",
+    }
+
+    url = "https://conciliation.stone.com.br/external/v1/transactions"
+
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+    )
+
+    try:
+        body = response.json()
+    except Exception:
+        body = response.text
+
+    return {
+        "status_code": response.status_code,
+        "url_testada": url,
+        "resposta": body,
     }
