@@ -405,7 +405,7 @@ def stone_agenda(
         "url_testada": url,
         "content_type": response.headers.get("Content-Type"),
         "tamanho": len(response.content),
-        "inicio_resposta": response.text[:1000] if response.text else "",
+        "inicio_resposta": response.text[:5000] if response.text else "",
     }
 import xml.etree.ElementTree as ET
 
