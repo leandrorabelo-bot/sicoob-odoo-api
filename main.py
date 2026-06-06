@@ -499,8 +499,8 @@ def stone_debug(stonecode: str, data: str):
     return {
         "inicio": xml[:5000]
     }
-@app.get("/stone/debug")
-def stone_debug():
+@app.get("/stone/debug-key")
+def stone_debug_key():
     return {
         "repr": repr(STONE_API_KEY),
         "tamanho": len(STONE_API_KEY)
