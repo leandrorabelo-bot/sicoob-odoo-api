@@ -371,34 +371,39 @@ def sincronizar_extrato(mes: str, ano: str, diaInicial: str, diaFinal: str):
 # STONE
 # =========================
 
-@app.get("/stone/test")
-def stone_test():
+from requests.auth import HTTPBasicAuth
+
+@app.get("/stone/agenda")
+def stone_agenda(
+    stonecode: str,
+    data: str,
+    layout: str = "XML2_2"
+):
     if not STONE_API_KEY:
         return {
             "status": "erro",
             "mensagem": "STONE_API_KEY não configurada no Render",
         }
 
-    headers = {
-        "Authorization": STONE_API_KEY,
-        "Content-Type": "application/json",
-    }
-
-    url = "https://conciliation.stone.com.br/external/v1/transactions"
+    url = f"https://conciliation.stone.com.br/v2/merchant/{stonecode}/conciliation-file/{data}"
 
     response = requests.get(
         url,
-        headers=headers,
-        timeout=30,
+        params={"layout": layout},
+        headers={
+            "Accept": "application/xml",
+            "Accept-Encoding": "gzip",
+            "x-user-type": "client",
+            "X-Accept-Redirect": "true",
+        },
+        auth=HTTPBasicAuth(STONE_API_KEY, ""),
+        timeout=120,
     )
-
-    try:
-        body = response.json()
-    except Exception:
-        body = response.text
 
     return {
         "status_code": response.status_code,
         "url_testada": url,
-        "resposta": body,
+        "content_type": response.headers.get("Content-Type"),
+        "tamanho": len(response.content),
+        "inicio_resposta": response.text[:1000] if response.text else "",
     }
