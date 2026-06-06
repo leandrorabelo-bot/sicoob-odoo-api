@@ -407,3 +407,72 @@ def stone_agenda(
         "tamanho": len(response.content),
         "inicio_resposta": response.text[:1000] if response.text else "",
     }
+import xml.etree.ElementTree as ET
+
+
+@app.get("/stone/agenda-limpa")
+def stone_agenda_limpa(
+    stonecode: str,
+    data: str,
+    layout: str = "XML2_2"
+):
+    bruto = stone_agenda(
+        stonecode=stonecode,
+        data=data,
+        layout=layout
+    )
+
+    if bruto["status_code"] != 200:
+        return bruto
+
+    xml_text = bruto["inicio_resposta"]
+
+    # Como o endpoint /stone/agenda atual só retorna os primeiros 1000 caracteres,
+    # vamos buscar novamente o XML completo aqui.
+    url = f"https://conciliation.stone.com.br/v2/merchant/{stonecode}/conciliation-file/{data}"
+
+    response = requests.get(
+        url,
+        params={"layout": layout},
+        headers={
+            "Accept": "application/xml",
+            "Accept-Encoding": "gzip",
+            "x-user-type": "client",
+            "X-Accept-Redirect": "true",
+        },
+        auth=HTTPBasicAuth(STONE_API_KEY, ""),
+        timeout=120,
+    )
+
+    root = ET.fromstring(response.content)
+
+    transacoes = []
+
+    for transaction in root.findall(".//Transaction"):
+        item = {}
+
+        for child in transaction:
+            item[child.tag] = child.text
+
+        # Eventos dentro da transação
+        events = transaction.find("Events")
+        if events is not None:
+            for event_group in events:
+                for event in event_group:
+                    evento = item.copy()
+                    evento["event_group"] = event_group.tag
+
+                    for field in event:
+                        evento[field.tag] = field.text
+
+                    transacoes.append(evento)
+
+        else:
+            transacoes.append(item)
+
+    return {
+        "stonecode": stonecode,
+        "data": data,
+        "quantidade": len(transacoes),
+        "transacoes": transacoes
+    }
