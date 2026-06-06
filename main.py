@@ -416,19 +416,6 @@ def stone_agenda_limpa(
     data: str,
     layout: str = "XML2_2"
 ):
-    bruto = stone_agenda(
-        stonecode=stonecode,
-        data=data,
-        layout=layout
-    )
-
-    if bruto["status_code"] != 200:
-        return bruto
-
-    xml_text = bruto["inicio_resposta"]
-
-    # Como o endpoint /stone/agenda atual só retorna os primeiros 1000 caracteres,
-    # vamos buscar novamente o XML completo aqui.
     url = f"https://conciliation.stone.com.br/v2/merchant/{stonecode}/conciliation-file/{data}"
 
     response = requests.get(
@@ -444,31 +431,45 @@ def stone_agenda_limpa(
         timeout=120,
     )
 
+    if response.status_code != 200:
+        return {
+            "status_code": response.status_code,
+            "resposta": response.text
+        }
+
     root = ET.fromstring(response.content)
+
+    def txt(node, name):
+        found = node.find(name)
+        return found.text if found is not None else None
 
     transacoes = []
 
-    for transaction in root.findall(".//Transaction"):
-        item = {}
+    for t in root.iter():
+        if not t.tag.endswith("Transaction"):
+            continue
 
-        for child in transaction:
-            item[child.tag] = child.text
+        item = {
+            "acquirer_transaction_key": txt(t, "AcquirerTransactionKey"),
+            "initiator_transaction_key": txt(t, "InitiatorTransactionKey"),
+            "authorization_datetime": txt(t, "AuthorizationDateTime"),
+            "capture_local_datetime": txt(t, "CaptureLocalDateTime"),
+            "authorized_amount": txt(t, "AuthorizedAmount"),
+            "captured_amount": txt(t, "CapturedAmount"),
+            "gross_amount": txt(t, "GrossAmount"),
+            "net_amount": txt(t, "NetAmount"),
+            "prevision_payment_date": txt(t, "PrevisionPaymentDate"),
+            "issuer_authorization_code": txt(t, "IssuerAuthorizationCode"),
+            "brand_id": txt(t, "BrandId"),
+            "card_number": txt(t, "CardNumber"),
+            "installment_number": txt(t, "InstallmentNumber"),
+            "number_of_installments": txt(t, "NumberOfInstallments"),
+            "fee_type": txt(t, "FeeType"),
+            "entry_mode": txt(t, "EntryMode"),
+            "account_type": txt(t, "AccountType"),
+        }
 
-        # Eventos dentro da transação
-        events = transaction.find("Events")
-        if events is not None:
-            for event_group in events:
-                for event in event_group:
-                    evento = item.copy()
-                    evento["event_group"] = event_group.tag
-
-                    for field in event:
-                        evento[field.tag] = field.text
-
-                    transacoes.append(evento)
-
-        else:
-            transacoes.append(item)
+        transacoes.append(item)
 
     return {
         "stonecode": stonecode,
