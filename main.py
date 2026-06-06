@@ -476,3 +476,25 @@ def stone_agenda_limpa(
         "quantidade": len(transacoes),
         "transacoes": transacoes
     }
+@app.get("/stone/debug")
+def stone_debug(stonecode: str, data: str):
+
+    url = f"https://conciliation.stone.com.br/v2/merchant/{stonecode}/conciliation-file/{data}"
+
+    response = requests.get(
+        url,
+        headers={
+            "Accept": "application/xml",
+            "Accept-Encoding": "gzip",
+            "x-user-type": "client",
+            "X-Accept-Redirect": "true",
+        },
+        auth=HTTPBasicAuth(STONE_API_KEY, ""),
+        timeout=120,
+    )
+
+    xml = response.text
+
+    return {
+        "inicio": xml[:5000]
+    }
