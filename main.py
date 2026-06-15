@@ -6,6 +6,8 @@ import io
 import requests
 import xmlrpc.client
 import xml.etree.ElementTree as ET
+import threading
+import urllib.request
 from datetime import datetime, timedelta
 
 from fastapi import FastAPI
@@ -14,6 +16,22 @@ from requests_pkcs12 import post, get
 from requests.auth import HTTPBasicAuth
 
 app = FastAPI()
+
+# =========================
+# KEEP-ALIVE (evita Render dormir)
+# =========================
+
+def _keep_alive():
+    import time
+    port = os.environ.get("PORT", "8000")
+    while True:
+        time.sleep(600)  # a cada 10 minutos
+        try:
+            urllib.request.urlopen(f"http://localhost:{port}/health")
+        except:
+            pass
+
+threading.Thread(target=_keep_alive, daemon=True).start()
 
 # =========================
 # CONFIG
