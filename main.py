@@ -363,9 +363,17 @@ def stone_auto_sync():
 
 @app.get("/cron")
 def cron():
-    sicoob = sicoob_auto_sync()
-    stone = stone_auto_sync()
-    return {"status": "ok", "timestamp": datetime.now().isoformat(), "sicoob": sicoob, "stone": stone}
+    def run():
+        try:
+            sicoob_auto_sync()
+        except Exception:
+            pass
+        try:
+            stone_auto_sync()
+        except Exception:
+            pass
+    threading.Thread(target=run, daemon=True).start()
+    return {"status": "iniciado", "timestamp": datetime.now().isoformat()}
 
 # =========================
 # DEBUG
