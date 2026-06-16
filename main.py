@@ -343,7 +343,7 @@ def stone_auto_sync():
         return {"status": "erro", "mensagem": "Falha autenticacao Odoo"}
     resultados = []
     hoje = datetime.now()
-    for dias_atras in range(1, 4):
+    for dias_atras in range(1, 8):  # últimos 7 dias
         data_busca = (hoje - timedelta(days=dias_atras)).strftime("%Y%m%d")
         for stonecode in STONE_JOURNALS:
             r = stone_sincronizar(stonecode=stonecode, data=data_busca)
@@ -374,6 +374,47 @@ def cron():
             pass
     threading.Thread(target=run, daemon=True).start()
     return {"status": "iniciado", "timestamp": datetime.now().isoformat()}
+
+# =========================
+# DIAGNÓSTICO STONE
+# =========================
+
+@app.get("/stone/diagnostico")
+def stone_diagnostico():
+    import threading
+    resultados = {}
+    hoje = datetime.now()
+    data = (hoje - timedelta(days=1)).strftime("%Y%m%d")
+    
+    def testar(stonecode, info):
+        try:
+            r = stone_buscar_xml(stonecode, data)
+            if r.status_code == 200:
+                transacoes = stone_parse_transacoes(r.content)
+                resultados[stonecode] = {
+                    "nome": info["name"],
+                    "status_http": r.status_code,
+                    "transacoes": len(transacoes),
+                    "tamanho_bytes": len(r.content),
+                }
+            else:
+                resultados[stonecode] = {
+                    "nome": info["name"],
+                    "status_http": r.status_code,
+                    "erro": r.text[:200],
+                }
+        except Exception as e:
+            resultados[stonecode] = {"nome": info["name"], "erro": str(e)[:200]}
+
+    threads = []
+    for sc, info in STONE_JOURNALS.items():
+        t = threading.Thread(target=testar, args=(sc, info))
+        t.start()
+        threads.append(t)
+    for t in threads:
+        t.join(timeout=30)
+
+    return {"data_testada": data, "resultados": resultados}
 
 # =========================
 # DEBUG
