@@ -46,17 +46,17 @@ ODOO_USER = "leandro.rabelo@gmail.com"
 ODOO_API_KEY = os.getenv("ODOO_API_KEY")
 ODOO_JOURNAL_ID = 18  # SICOOB 5004
 
-STONE_API_KEY = os.getenv("STONE_API_KEY")
+STONE_API_KEY = os.getenv("STONE_API_KEY")  # chave padrão (fallback)
 
-# stonecode -> journal_id no Odoo
+# stonecode -> journal_id + SAK própria (se tiver)
 STONE_JOURNALS = {
-    "147684511": {"journal_id": 21, "name": "STONE | PS 0001"},
-    "117503480": {"journal_id": 22, "name": "STONE | PS 0002"},
-    "125360374": {"journal_id": 23, "name": "STONE | PS 0003"},
-    "589138084": {"journal_id": 24, "name": "STONE | PS 0004"},
-    "863700291": {"journal_id": 25, "name": "STONE | PS 0005"},
-    "580664438": {"journal_id": 26, "name": "STONE | TREVO"},
-    "111114546": {"journal_id": 27, "name": "STONE | DRIVE ASSIS"},
+    "147684511": {"journal_id": 21, "name": "STONE | PS 0001",     "sak": os.getenv("STONE_SAK_PS0001")},
+    "117503480": {"journal_id": 22, "name": "STONE | PS 0002",     "sak": os.getenv("STONE_SAK_PS0002")},
+    "125360374": {"journal_id": 23, "name": "STONE | PS 0003",     "sak": os.getenv("STONE_SAK_PS0003")},
+    "589138084": {"journal_id": 24, "name": "STONE | PS 0004",     "sak": os.getenv("STONE_SAK_PS0004")},
+    "863700291": {"journal_id": 25, "name": "STONE | PS 0005",     "sak": os.getenv("STONE_SAK_PS0005")},
+    "580664438": {"journal_id": 26, "name": "STONE | TREVO",       "sak": os.getenv("STONE_SAK_TREVO")},
+    "111114546": {"journal_id": 27, "name": "STONE | DRIVE ASSIS", "sak": os.getenv("STONE_SAK_DRIVE")},
 }
 
 # =========================
@@ -257,12 +257,14 @@ def sicoob_auto_sync():
 # =========================
 
 def stone_buscar_xml(stonecode: str, data: str):
+    info = STONE_JOURNALS.get(stonecode, {})
+    sak = info.get("sak") or STONE_API_KEY  # usa SAK própria ou fallback
     url = f"https://conciliation.stone.com.br/v2/merchant/{stonecode}/conciliation-file/{data}"
     return requests.get(
         url,
         params={"layout": "XML2_2"},
         headers={"Accept": "application/xml", "Accept-Encoding": "gzip", "x-user-type": "client", "X-Accept-Redirect": "true"},
-        auth=HTTPBasicAuth(STONE_API_KEY, ""),
+        auth=HTTPBasicAuth(sak, ""),
         timeout=120,
     )
 
