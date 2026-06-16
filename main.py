@@ -55,7 +55,7 @@ STONE_JOURNALS = {
     "125360374": {"journal_id": 23, "name": "STONE | PS 0003",     "sak": os.getenv("STONE_SAK_PS0003")},
     "589138084": {"journal_id": 24, "name": "STONE | PS 0004",     "sak": os.getenv("STONE_SAK_PS0004")},
     "863700291": {"journal_id": 25, "name": "STONE | PS 0005",     "sak": os.getenv("STONE_SAK_PS0005")},
-    "580664438": {"journal_id": 26, "name": "STONE | TREVO",       "sak": os.getenv("STONE_SAK_TREVO")},
+    "580664438": {"journal_id": 40, "name": "STONE | TREVO",       "sak": os.getenv("STONE_SAK_TREVO")},
     "111114546": {"journal_id": 27, "name": "STONE | DRIVE ASSIS", "sak": os.getenv("STONE_SAK_DRIVE")},
 }
 
