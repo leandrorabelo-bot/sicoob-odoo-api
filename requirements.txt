@@ -2,3 +2,5 @@ fastapi
 uvicorn
 requests
 requests-pkcs12
+openpyxl
+python-multipart
