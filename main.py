@@ -14,6 +14,7 @@ from fastapi import FastAPI
 from fastapi.responses import Response
 from requests_pkcs12 import post, get
 from requests.auth import HTTPBasicAuth
+from gcom import gcom_auto_sync, gcom_sincronizar
 
 app = FastAPI()
 
@@ -360,6 +361,18 @@ def stone_auto_sync():
     }
 
 # =========================
+# GCOM
+# =========================
+
+@app.get("/gcom/sincronizar")
+def gcom_sinc(id_etb: int, data: str):
+    return gcom_sincronizar(id_etb, data)
+
+@app.get("/gcom/auto-sync")
+def gcom_auto():
+    return gcom_auto_sync()
+
+# =========================
 # CRON
 # =========================
 
@@ -372,6 +385,10 @@ def cron():
             pass
         try:
             stone_auto_sync()
+        except Exception:
+            pass
+        try:
+            gcom_auto_sync()
         except Exception:
             pass
     threading.Thread(target=run, daemon=True).start()
