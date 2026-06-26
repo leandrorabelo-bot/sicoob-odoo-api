@@ -10,11 +10,12 @@ import threading
 import urllib.request
 from datetime import datetime, timedelta
 
-from fastapi import FastAPI
-from fastapi.responses import Response
+from fastapi import FastAPI, UploadFile, File, Form
+from fastapi.responses import Response, HTMLResponse
 from requests_pkcs12 import post, get
 from requests.auth import HTTPBasicAuth
 from gcom import gcom_auto_sync, gcom_sincronizar, gcom_auth, get_odoo_uid, get_odoo_models, PDV_MAP
+from rh_importer import importar_pagamentos_rh, FORM_HTML
 
 app = FastAPI()
 
@@ -398,6 +399,17 @@ def gcom_sinc_periodo(inicio: str, fim: str):
 # =========================
 # CRON
 # =========================
+
+@app.get("/rh/importar", response_class=HTMLResponse)
+def rh_importar_form():
+    return FORM_HTML
+
+
+@app.post("/rh/importar")
+async def rh_importar(file: UploadFile = File(...), data_padrao: str = Form(None)):
+    conteudo = await file.read()
+    return importar_pagamentos_rh(conteudo, file.filename, data_padrao or None)
+
 
 @app.get("/cron")
 def cron():
