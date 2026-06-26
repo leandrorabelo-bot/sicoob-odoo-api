@@ -30,6 +30,15 @@ ID_EMP_GCOM = 105327
 ID_PES_USU = 94705
 ID_MRC = 58
 
+# Cabecalhos de navegador (o WAF do GCOM bloqueia user-agent de bot com 403)
+BROWSER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+    "Origin": "https://www2.gcom.com.br",
+    "Referer": "https://www2.gcom.com.br/novoerp/",
+}
+
 # ---- Odoo: diario / contas fixas ----
 JOURNAL_ID = 43          # Vendas GCOM
 REVENUE_ACCOUNT = 912    # 3.01.01.01.01.05 Receita da Revenda de Mercadorias
@@ -62,6 +71,7 @@ FORMA_DEFAULT = "tefpix"
 def gcom_auth():
     r = requests.post(
         f"{GCOM_BASE}/api/GcomUsuarioService/usuario/",
+        headers={**BROWSER_HEADERS, "Content-Type": "application/json"},
         json={"empresa": os.getenv("GCOM_EMPRESA"),
               "usuario": os.getenv("GCOM_USUARIO"),
               "senha":   os.getenv("GCOM_SENHA")},
@@ -72,9 +82,9 @@ def gcom_auth():
 
 
 def _h(token):
-    return {"Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-            "Accept": "application/json, text/plain, */*"}
+    return {**BROWSER_HEADERS,
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"}
 
 
 def gcom_base_roy(token, id_etb, dia):  # dia = datetime/date
