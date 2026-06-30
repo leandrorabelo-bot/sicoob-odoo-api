@@ -43,7 +43,7 @@ BROWSER_HEADERS = {
 JOURNAL_ID = 43          # Vendas GCOM
 REVENUE_ACCOUNT = 912    # 3.01.01.01.01.05 Receita da Revenda de Mercadorias
 ADICIONAL_ACCOUNT = 1475 # 3.01.01.01.01.50 RECEITA - ADICIONAL DELIVERY
-SYNC_DAYS = int(os.getenv("GCOM_SYNC_DAYS", "7"))  # qtos dias p/ tras no auto-sync
+SYNC_DAYS = 7  # janela fixa de 7 dias (ignora env GCOM_SYNC_DAYS que estava pinada em 3); dedup torna dias extras inofensivos
 
 # id_etb (GCOM) -> contas/analitica (Odoo)
 PDV_MAP = {
