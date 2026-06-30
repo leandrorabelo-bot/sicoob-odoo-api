@@ -411,11 +411,119 @@ async def rh_importar(file: UploadFile = File(...), data_padrao: str = Form(None
     return importar_pagamentos_rh(conteudo, file.filename, data_padrao or None)
 
 
+# =========================
+# CONCILIACAO AUTOMATICA (Sicoob -> Contas a Pagar)
+# =========================
+
+def _kw(models, uid, model, method, args, kwargs=None):
+    return models.execute_kw(ODOO_DB, uid, ODOO_API_KEY, model, method, args, kwargs or {})
+
+def conciliar_sicoob_core(simular=False, dias_tolerancia=3):
+    uid = get_odoo_uid()
+    if not uid:
+        return {"status": "erro", "mensagem": "Falha autenticacao Odoo"}
+    models = get_odoo_models()
+    hoje = datetime.now().date()
+
+    bill_ids = _kw(models, uid, "account.move", "search",
+        [[["move_type", "=", "in_invoice"], ["state", "=", "posted"], ["payment_state", "=", "not_paid"]]])
+    bills = _kw(models, uid, "account.move", "read",
+        [bill_ids, ["name", "partner_id", "amount_total", "invoice_date_due"]])
+
+    bsl_ids = _kw(models, uid, "account.bank.statement.line", "search",
+        [[["journal_id", "=", ODOO_JOURNAL_ID], ["is_reconciled", "=", False], ["amount", "<", 0]]])
+    bsls = _kw(models, uid, "account.bank.statement.line", "read",
+        [bsl_ids, ["date", "amount", "move_id", "partner_id"]])
+
+    por_valor = {}
+    for l in bsls:
+        k = round(abs(l["amount"]), 2)
+        por_valor.setdefault(k, []).append(l)
+
+    usados = set()
+    conciliados = []
+    ambiguos = []
+    erros = []
+
+    for b in bills:
+        valor = round(b["amount_total"], 2)
+        due = None
+        if b.get("invoice_date_due"):
+            due = datetime.strptime(b["invoice_date_due"], "%Y-%m-%d").date()
+        if due and due > hoje:
+            continue
+
+        def prox(c):
+            if not due:
+                return 999
+            return abs((datetime.strptime(c["date"], "%Y-%m-%d").date() - due).days)
+
+        def parceiro_ok(c):
+            cp = c.get("partner_id")
+            if cp and b.get("partner_id"):
+                return cp[0] == b["partner_id"][0]
+            return True
+
+        cands = [c for c in por_valor.get(valor, [])
+                 if c["id"] not in usados and prox(c) <= dias_tolerancia and parceiro_ok(c)]
+        if len(cands) == 0:
+            continue
+        if len(cands) > 1:
+            ambiguos.append({"conta": b["name"], "valor": valor, "candidatos": len(cands)})
+            continue
+
+        c = cands[0]
+        try:
+            pl_ids = _kw(models, uid, "account.move.line", "search",
+                [[["move_id", "=", b["id"]], ["account_type", "=", "liability_payable"], ["reconciled", "=", False]]])
+            if len(pl_ids) != 1:
+                erros.append({"conta": b["name"], "erro": "linha a pagar nao unica"})
+                continue
+            pl = _kw(models, uid, "account.move.line", "read", [pl_ids, ["account_id", "partner_id"]])[0]
+            sl_ids = _kw(models, uid, "account.move.line", "search",
+                [[["move_id", "=", c["move_id"][0]], ["account_type", "!=", "asset_cash"]]])
+            if len(sl_ids) != 1:
+                erros.append({"conta": b["name"], "erro": "linha suspense nao unica"})
+                continue
+
+            if simular:
+                usados.add(c["id"])
+                conciliados.append({"conta": b["name"], "valor": valor, "data_pag": c["date"], "simulado": True})
+                continue
+
+            partner_id = pl["partner_id"][0] if pl.get("partner_id") else (b["partner_id"][0] if b.get("partner_id") else False)
+            _kw(models, uid, "account.move.line", "write",
+                [sl_ids, {"account_id": pl["account_id"][0], "partner_id": partner_id}])
+            _kw(models, uid, "account.move.line", "reconcile", [[sl_ids[0], pl_ids[0]]])
+            usados.add(c["id"])
+            conciliados.append({"conta": b["name"], "valor": valor, "data_pag": c["date"]})
+        except Exception as e:
+            erros.append({"conta": b["name"], "erro": str(e)[:200]})
+
+    return {
+        "status": "ok",
+        "simular": simular,
+        "contas_abertas": len(bills),
+        "saidas_disponiveis": len(bsls),
+        "conciliados": len(conciliados),
+        "ambiguos": ambiguos,
+        "erros": erros,
+        "detalhe_conciliados": conciliados,
+    }
+
+@app.get("/conciliar/sicoob")
+def conciliar_sicoob(simular: bool = False, dias: int = 3):
+    return conciliar_sicoob_core(simular=simular, dias_tolerancia=dias)
+
 @app.get("/cron")
 def cron():
     def run():
         try:
             sicoob_auto_sync()
+        except Exception:
+            pass
+        try:
+            conciliar_sicoob_core()
         except Exception:
             pass
         try:
