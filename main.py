@@ -494,9 +494,19 @@ def conciliar_sicoob_core(simular=False, dias_tolerancia=3):
             partner_id = pl["partner_id"][0] if pl.get("partner_id") else (b["partner_id"][0] if b.get("partner_id") else False)
             _kw(models, uid, "account.move.line", "write",
                 [sl_ids, {"account_id": pl["account_id"][0], "partner_id": partner_id}])
-            _kw(models, uid, "account.move.line", "reconcile", [[sl_ids[0], pl_ids[0]]])
-            usados.add(c["id"])
-            conciliados.append({"conta": b["name"], "valor": valor, "data_pag": c["date"]})
+            # O retorno de reconcile() nao e serializavel via XML-RPC e gera Fault
+            # MESMO apos conciliar/commitar. Por isso ignoramos o retorno e
+            # confirmamos o sucesso relendo o estado da linha.
+            try:
+                _kw(models, uid, "account.move.line", "reconcile", [[sl_ids[0], pl_ids[0]]])
+            except Exception:
+                pass
+            chk = _kw(models, uid, "account.move.line", "read", [[pl_ids[0]], ["reconciled"]])
+            if chk and chk[0].get("reconciled"):
+                usados.add(c["id"])
+                conciliados.append({"conta": b["name"], "valor": valor, "data_pag": c["date"]})
+            else:
+                erros.append({"conta": b["name"], "erro": "reconcile nao confirmado"})
         except Exception as e:
             erros.append({"conta": b["name"], "erro": str(e)[:200]})
 
