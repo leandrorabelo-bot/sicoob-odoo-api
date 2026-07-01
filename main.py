@@ -396,6 +396,27 @@ def gcom_sinc_periodo(inicio: str, fim: str):
     threading.Thread(target=run, daemon=True).start()
     return {"status": "iniciado", "inicio": inicio, "fim": fim}
 
+@app.get("/gcom/formas")
+def gcom_formas_debug(id_etb: int, data: str):
+    """Diagnostico so-leitura: breakdown de formas de pagamento do GCOM (nao grava nada)."""
+    from gcom import gcom_formas, gcom_base_roy, FORMA_MAP
+    dia = datetime.strptime(data, "%Y%m%d")
+    token = gcom_auth()
+    formas = gcom_formas(token, id_etb, dia)
+    base = gcom_base_roy(token, id_etb, dia)
+    out = []
+    for f in formas:
+        idf = int(f.get("id_fma_pgt"))
+        out.append({
+            "id_fma_pgt": idf,
+            "dc_fma_pgt": f.get("dc_fma_pgt"),
+            "vl_pgt": round(float(f.get("vl_pgt") or 0.0), 2),
+            "conta_destino_chave": FORMA_MAP.get(idf, "tefpix (DEFAULT/desconhecida)"),
+        })
+    total = round(sum(x["vl_pgt"] for x in out), 2)
+    return {"id_etb": id_etb, "data": data, "base_roy_mkt": base,
+            "total_formas": total, "formas": out}
+
 # =========================
 # CRON
 # =========================
