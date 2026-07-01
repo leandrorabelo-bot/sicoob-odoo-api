@@ -437,6 +437,41 @@ def gcom_integradora_debug(id_etb: int, data: str):
         body = r.text[:400]
     return {"id_etb": id_etb, "data": data, "status": r.status_code, "integradoras": body}
 
+@app.get("/gcom/relatorio-teste")
+def gcom_relatorio_teste():
+    """Feasibility: FastAPI consegue acessar o relatorio ASP legado (gcom2) server-side?"""
+    import os as _os
+    import requests as _rq
+    from gcom import GCOM_BASE, BROWSER_HEADERS
+    s = _rq.Session()
+    s.headers.update(BROWSER_HEADERS)
+    login = s.post(f"{GCOM_BASE}/api/GcomUsuarioService/usuario/",
+                   headers={**BROWSER_HEADERS, "Content-Type": "application/json"},
+                   json={"empresa": _os.getenv("GCOM_EMPRESA"),
+                         "usuario": _os.getenv("GCOM_USUARIO"),
+                         "senha": _os.getenv("GCOM_SENHA")}, timeout=30)
+    try:
+        tok = login.json().get("accessToken")
+    except Exception:
+        tok = None
+    cookies_login = list(s.cookies.keys())
+    # tenta GET no relatorio ASP legado
+    out = {"login_status": login.status_code, "tem_token": bool(tok), "cookies_login": cookies_login}
+    for tent, hdr in [("cookie_only", {}), ("bearer", {"Authorization": f"Bearer {tok}"})]:
+        try:
+            r = s.get(f"{GCOM_BASE}/gcom2/VENDAS/CONSULTAVNDPER.ASP",
+                      headers=hdr, timeout=30, allow_redirects=True)
+            body = r.text or ""
+            out[tent] = {
+                "status": r.status_code, "url_final": r.url, "len": len(body),
+                "tem_relatorio": ("Vendas por Per" in body) or ("CONSULTAVND" in body.upper()),
+                "parece_login": ("senha" in body.lower() and ("login" in body.lower() or "usuario" in body.lower())),
+                "snippet": body[:200],
+            }
+        except Exception as e:
+            out[tent] = {"erro": str(e)}
+    return out
+
 # =========================
 # CRON
 # =========================
