@@ -417,6 +417,26 @@ def gcom_formas_debug(id_etb: int, data: str):
     return {"id_etb": id_etb, "data": data, "base_roy_mkt": base,
             "total_formas": total, "formas": out}
 
+@app.get("/gcom/integradora")
+def gcom_integradora_debug(id_etb: int, data: str):
+    """Diagnostico so-leitura: breakdown por integradora (Stone/iFood/99...) do GCOM."""
+    import requests as _rq
+    from gcom import gcom_auth, _h, GCOM_BASE, ID_EMP_GCOM, ID_PES_USU, ID_MRC
+    dia = datetime.strptime(data, "%Y%m%d").strftime("%d/%m/%Y")
+    token = gcom_auth()
+    r = _rq.post(
+        f"{GCOM_BASE}/api/GcomDashboardService/Dashlet/VendaIntegradoraDashlet",
+        headers=_h(token),
+        json={"ID_EMP_GCOM": ID_EMP_GCOM, "ID_PES_USU": ID_PES_USU, "ID_VISAO": 1,
+              "ID_DASHLET": 9, "SEQ": 9, "DC_COR_SECUNDARIA": "#dbead5",
+              "ID_ETB_GCOM": id_etb, "ID_MRC": ID_MRC, "DT_DE": dia, "DT_ATE": dia},
+        timeout=30)
+    try:
+        body = r.json()
+    except Exception:
+        body = r.text[:400]
+    return {"id_etb": id_etb, "data": data, "status": r.status_code, "integradoras": body}
+
 # =========================
 # CRON
 # =========================
